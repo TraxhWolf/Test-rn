@@ -1,7 +1,8 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React, { createContext, useContext, useState } from 'react';
-import { Dimensions, Image, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Image, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import firestore from "@react-native-firebase/firestore"
 
 //CONTEXT
 const AppContext = createContext(
@@ -27,6 +28,8 @@ const App = () => {
         </AppContext.Provider>
     )
 }
+//FIREBASE
+const db = firestore()
 
 //NAVIGATION
 const Stack = createNativeStackNavigator()
@@ -62,11 +65,11 @@ function HomeScreen({ navigation }) {
         <SafeAreaView>
             <View style={styles.contentContainer}>
                 {!isLoggedIn && (
-                        <>
-                            <AppButton btnText={"REGISTER"} onPress={() => navigation.navigate("Register")} />
-                            <AppButton btnText={"LOGIN"} onPress={() => navigation.navigate("Login")} />
-                        </>
-                    )}
+                    <>
+                        <AppButton btnText={"REGISTER"} onPress={() => navigation.navigate("Register")} />
+                        <AppButton btnText={"LOGIN"} onPress={() => navigation.navigate("Login")} />
+                    </>
+                )}
                 {isLoggedIn && <DashScreen />}
             </View>
         </SafeAreaView>
@@ -85,10 +88,15 @@ function RegisterScreen({ navigation }) {
             }
         }
     )
-    const {username, password, setUsername, setPassword} = useContext(AppContext)
+    const { username, password, setUsername, setPassword } = useContext(AppContext)
     const handleRegister = () => {
         setUsername('')
         setPassword('')
+        const userData = {
+            username: username,
+            password: password
+        }
+        db.collection("Users").add(userData)
         navigation.navigate("Login")
         console.log(username)
         console.log(password)
@@ -96,8 +104,8 @@ function RegisterScreen({ navigation }) {
     return (
         <SafeAreaView>
             <View style={styles.contentContainer}>
-                <BaseInput label={"New Username"} onValueChange={setUsername}/>
-                <PwdInput label={"New Password"} onValueChange={setPassword}/>
+                <BaseInput label={"New Username"} onValueChange={setUsername} />
+                <PwdInput label={"New Password"} onValueChange={setPassword} />
                 <AppButton btnText={"REGISTER"} onPress={handleRegister} />
             </View>
         </SafeAreaView>
@@ -116,24 +124,39 @@ function LoginScreen({ navigation }) {
             }
         }
     )
-    const {setUsername, setPassword, setIsLoggedIn} = useContext(AppContext)
-    const handleLogin = () => {
+    const { setUsername, setPassword, setIsLoggedIn, username: storedUsername, password: storedPassword } = useContext(AppContext)
+    const handleLogin = async () => {
         setIsLoggedIn(true)
         setUsername('')
         setPassword('')
-        navigation.navigate("Dashboard")
+        const fetchdata = db.collection("Users").onSnapshot(snapshot => {
+            let found = false
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.username === storedUsername && data.password === storedPassword) {
+                    found = true
+                    navigation.navigate("Dashboard");
+                    return
+                }
+            });
+            if (!found) {
+                Alert.alert('Login Failed', 'Username or Password is incorrect');
+            }
+        }, error => {
+            console.error('Error fetching users:', error);
+        });
     }
     return (
         <SafeAreaView>
             <View style={styles.contentContainer}>
-                <BaseInput label={"Username"} onValueChange={setUsername}/>
-                <PwdInput label={"Password"} onValueChange={setPassword}/>
+                <BaseInput label={"Username"} onValueChange={setUsername} />
+                <PwdInput label={"Password"} onValueChange={setPassword} />
                 <AppButton btnText={"LOGIN"} onPress={handleLogin} />
             </View>
         </SafeAreaView>
     )
 }
-function DashScreen({ navigation }) {
+function DashScreen() {
     const { width, height } = Dimensions.get("screen")
     const styles = StyleSheet.create(
         {
@@ -153,10 +176,11 @@ function DashScreen({ navigation }) {
             }
         }
     )
-    const {setIsLoggedIn} = useContext(AppContext)
+    const navigation = useNavigation()
+    const { setIsLoggedIn } = useContext(AppContext)
     const handleLogout = () => {
         setIsLoggedIn(false)
-        navigation.popToTop()
+        navigation.navigate("Home")
     }
     return (
         <SafeAreaView>
