@@ -1,8 +1,9 @@
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import React, { createContext, useContext, useState } from 'react';
-import { Alert, Dimensions, Image, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Alert, Dimensions, FlatList, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import firestore from "@react-native-firebase/firestore"
+import { DataTable, PaperProvider } from 'react-native-paper';
 
 //CONTEXT
 const AppContext = createContext(
@@ -12,7 +13,13 @@ const AppContext = createContext(
         password: '',
         setPassword: (password) => { },
         isLoggedIn: false,
-        setIsLoggedIn: (isLoggedIn) => { }
+        setIsLoggedIn: (isLoggedIn) => { },
+        name: '',
+        setName: (name) => { },
+        place: '',
+        setPlace: (place) => { },
+        thing: '',
+        setThing: (thing) => { }
     }
 )
 
@@ -20,8 +27,11 @@ const AppContext = createContext(
 const App = () => {
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
+    const [name, setName] = useState('')
+    const [place, setPlace] = useState('')
+    const [thing, setThing] = useState('')
     const [isLoggedIn, setIsLoggedIn] = useState(false)
-    const value = { username, setUsername, password, setPassword, isLoggedIn, setIsLoggedIn }
+    const value = { username, setUsername, password, setPassword, isLoggedIn, setIsLoggedIn, name, setName, place, setPlace, thing, setThing }
     return (
         <AppContext.Provider value={value}>
             <AppNavigation />
@@ -173,14 +183,90 @@ function DashScreen() {
                 justifyContent: "center",
                 alignItems: "flex-end",
                 paddingEnd: 30
+            },
+            testInputs: {
+                marginTop: 150
+            },
+            tableContainer: {
+                width: "75%"
+            },
+            tableHeader: {
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                backgroundColor: "#000000",
+                padding: 6.9
+            },
+            headerText: {
+                color: "#ffffff",
+                fontSize: 16
+            },
+            row: {
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                backgroundColor: "#ffffff",
+                padding: 10,
+                borderBlockColor: "#000000",
+                borderWidth: 1
+            },
+            cell: {
+                color: "#000000"
             }
         }
     )
     const navigation = useNavigation()
-    const { setIsLoggedIn } = useContext(AppContext)
+    const { setIsLoggedIn, setName, setPlace, setThing, name, place, thing } = useContext(AppContext)
     const handleLogout = () => {
         setIsLoggedIn(false)
         navigation.navigate("Home")
+    }
+    const handleFormSubmit = () => {
+        setName('')
+        setPlace('')
+        setThing('')
+        const testData = {
+            name: name,
+            place: place,
+            thing: thing
+        }
+        db.collection("TestData").add(testData)
+    }
+    
+    const [data, setData] = useState([])
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const snapshot = await firestore().collection('TestData').get();
+                const fetchedData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                }));
+                console.log(fetchedData)
+                setData(fetchedData);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        };
+
+        fetchData();
+
+        const unsubscribe = firestore().collection('TestData').onSnapshot((snapshot) => {
+            const updatedData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+            }));
+            setData(updatedData);
+        });
+
+        return () => unsubscribe();
+    }, []);
+    const renderItem = ({item}) => {
+        return(
+            <View style={styles.row}>
+                <Text style={styles.cell}>{item.name}</Text>
+                <Text style={styles.cell}>{item.place}</Text>
+                <Text style={styles.cell}>{item.thing}</Text>
+            </View>
+        )
     }
     return (
         <SafeAreaView>
@@ -188,6 +274,24 @@ function DashScreen() {
                 <View style={styles.navBar}>
                     <Logout onPress={handleLogout} />
                 </View>
+                    <View style={styles.testInputs}>
+                        <BaseInput label={"Name"} onValueChange={setName} />
+                        <BaseInput label={"Place"} onValueChange={setPlace} />
+                        <BaseInput label={"Thing"} onValueChange={setThing} />
+                        <AppButton btnText={"SUBMIT"} onPress={handleFormSubmit} />
+                    </View>
+                    <View style={styles.tableContainer}>
+                            <View style={styles.tableHeader}>
+                                <Text style={styles.headerText}>Name</Text>
+                                <Text style={styles.headerText}>Place</Text>
+                                <Text style={styles.headerText}>Things</Text>
+                            </View>
+                            <FlatList 
+                            data={data}
+                            renderItem={renderItem}
+                            keyExtractor={(item, index)  => index.toString()}
+                            />
+                    </View>
             </View>
         </SafeAreaView>
     )
